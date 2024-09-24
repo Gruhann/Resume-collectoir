@@ -1,19 +1,51 @@
-"use client";
-import React, { useState } from "react";
-import { auth, storage, db } from "../../firebase.js"; // Import Firestore
-import { GoogleAuthProvider, signInWithPopup, User } from "firebase/auth";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+'use client'
+import React, { useState, useEffect } from "react";
+import { auth, storage, db } from "../../firebase.js";
+import { GoogleAuthProvider, signInWithPopup, User, signOut } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { collection, addDoc } from "firebase/firestore"; // Import Firestore functions
+import {  doc, onSnapshot, setDoc } from "firebase/firestore";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
+import { ThemeProvider } from "next-themes";
+import { MoonIcon, SunIcon } from "lucide-react";
+import { useTheme } from "next-themes";
+import { FirebaseError } from "firebase/app";
+const ThemeToggle = () => {
+  const { setTheme, theme } = useTheme();
+
+  return (
+    <Button
+      variant="outline"
+      size="icon"
+      onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+      className="fixed top-4 right-4"
+    >
+      <SunIcon className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+      <MoonIcon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+      <span className="sr-only">Toggle theme</span>
+    </Button>
+  );
+};
 
 const Users: React.FC = () => {
   const [name, setName] = useState<string>("");
   const [email, setEmail] = useState<string>("");
+  const [branch, setBranch] = useState<string>("");
+  const [cgpa, setCgpa] = useState<string>("");
   const [resume, setResume] = useState<File | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [uploadStatus, setUploadStatus] = useState<"idle" | "uploading" | "success" | "error">("idle");
   const [downloadURL, setDownloadURL] = useState<string>("");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
+  const [isNewUser, setIsNewUser] = useState<boolean>(false);
+  const { toast } = useToast();
+  
+  
   const handleGoogleSignIn = async () => {
     try {
       const provider = new GoogleAuthProvider();
@@ -21,174 +53,233 @@ const Users: React.FC = () => {
       const loggedInUser = result.user;
       setUser(loggedInUser);
       setEmail(loggedInUser.email || "");
+      localStorage.setItem("user", JSON.stringify(loggedInUser));
+      checkUserData(loggedInUser);
     } catch (error: unknown) {
       if (error instanceof Error) {
-        console.error("Error signing in with Google: ", error.message);
+        toast({
+          title: "Error",
+          description: `Failed to sign in with Google: ${error.message}`,
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setUser(null);
+      localStorage.removeItem("user");
+      toast({
+        title: "Success",
+        description: "Logged out successfully",
+      });
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        toast({
+          title: "Error",
+          description: `Failed to log out: ${error.message}`,
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
+  const checkUserData = async (user: User) => {
+    try {
+      const docRef = doc(db, "students", user.uid);
+      const unsubscribe = onSnapshot(docRef, (docSnapshot: { exists: () => any; data: () => any; }) => {
+        if (docSnapshot.exists()) {
+          const userData = docSnapshot.data();
+          setName(userData.name);
+          setBranch(userData.branch);
+          setCgpa(userData.cgpa);
+          setDownloadURL(userData.resumeURL);
+          setIsNewUser(false);
+        } else {
+          setIsNewUser(true);
+        }
+      });
+  
+      // Clean up the listener when the component unmounts
+      return unsubscribe;
+    } catch (error: unknown) {
+      if (error instanceof FirebaseError && error.code === 'failed-precondition') {
+        // Handle offline scenario
+        console.log('Offline, unable to fetch user data');
+      } else {
+        // Handle other errors
+        console.error('Error fetching user data:', error);
       }
     }
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    
-    if (!resume) {
-      console.error("No resume file selected!");
+
+    if (!resume && isNewUser) {
+      toast({
+        title: "Error",
+        description: "Please select a resume file.",
+        variant: "destructive",
+      });
       return;
     }
     if (!user) {
-      console.error("User is not authenticated");
+      toast({
+        title: "Error",
+        description: "User is not authenticated",
+        variant: "destructive",
+      });
       return;
     }
 
     setUploadStatus("uploading");
-    setErrorMessage(null);
 
     try {
-      const storageRef = ref(storage, `resumes/${user.uid}/${resume.name}`);
-      await uploadBytes(storageRef, resume);
-      const fileDownloadURL = await getDownloadURL(storageRef);
-      setDownloadURL(fileDownloadURL);
+      let fileDownloadURL = downloadURL;
+      if (resume) {
+        const storageRef = ref(storage, `resumes/${user.uid}/${resume.name}`);
+        await uploadBytes(storageRef, resume);
+        fileDownloadURL = await getDownloadURL(storageRef);
+        setDownloadURL(fileDownloadURL);
+      }
+
+      const userRef = doc(db, "students", user.uid);
+      const userData = { uid: user.uid, name, email, branch, cgpa, resumeURL: fileDownloadURL };
       
-      await addDoc(collection(db, "students"), {
-        uid: user.uid,
-        name,
-        email,
-        resumeURL: fileDownloadURL,
-      });
+      // Use setDoc with merge option to update or create the document
+      await setDoc(userRef, userData, { merge: true });
 
       setUploadStatus("success");
-      console.log("Resume uploaded and student details saved successfully");
+      setIsNewUser(false);
+      toast({
+        title: "Success",
+        description: "Profile updated successfully",
+      });
     } catch (error: unknown) {
       setUploadStatus("error");
       if (error instanceof Error) {
-        setErrorMessage(error.message);
-        console.error("Error uploading file: ", error.message);
+        toast({
+          title: "Error",
+          description: `Failed to update profile: ${error.message}`,
+          variant: "destructive",
+        });
       }
     }
   };
 
-  const handleModalClose = () => {
-    setUploadStatus("idle");
-  };
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      const parsedUser = JSON.parse(storedUser);
+      setUser(parsedUser);
+      setEmail(parsedUser.email);
+      checkUserData(parsedUser);
+    }
+  }, []);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen">
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground">
+    <ThemeToggle />
       {user ? (
-        uploadStatus === "success" ? (
-          <div className="flex flex-col items-center justify-center space-y-4">
-            <h2 className="text-2xl font-extrabold mb-4">Thank You!</h2>
-            <p>Your resume has been successfully uploaded.</p>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center space-y-4">
-            <h2 className="text-2xl font-extrabold mb-4">User Profile</h2>
-            <form
-              onSubmit={handleSubmit}
-              className="w-full max-w-sm border-2 p-8 rounded-2xl shadow-xl shadow-black/25"
-              encType="multipart/form-data"
-            >
-              <div className="mb-4">
-                <label
-                  htmlFor="name"
-                  className="block text-gray-700 text-sm font-bold mb-2"
-                >
-                  Name
-                </label>
-                <input
-                  type="text"
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                  required
-                />
-              </div>
-              <div className="mb-4">
-                <label
-                  htmlFor="email"
-                  className="block text-gray-700 text-sm font-bold mb-2"
-                >
-                  Email
-                </label>
-                <input
-                  type="email"
-                  id="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                  required
-                  readOnly // Make it read-only if you don't want the user to edit it
-                />
-              </div>
-              <div className="mb-4">
-                <label
-                  htmlFor="resume"
-                  className="block text-gray-700 text-sm font-bold mb-2"
-                >
-                  Resume
-                </label>
-                <input
-                  type="file"
-                  id="resume"
-                  accept=".pdf,.doc,.docx"
-                  onChange={(e) => {
-                    if (e.target.files) {
-                      setResume(e.target.files[0]);
-                    }
-                  }}
-                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                />
-              </div>
-              <div className="flex items-center justify-center">
-                <button
-                  type="submit"
-                  className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
-                >
-                  Save Profile
-                </button>
-              </div>
-            </form>
-
-            {uploadStatus === "uploading" && <p>Uploading your resume...</p>}
-            {errorMessage && <p className="text-red-500">{errorMessage}</p>}
-
-            {uploadStatus === "success" && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-                <div className="bg-white p-6 rounded-lg shadow-lg max-w-md">
-                  <h3 className="text-2xl font-semibold mb-4">Resume Uploaded!</h3>
-                  <p className="mb-4">
-                    Your resume has been uploaded successfully. You can view it{" "}
-                    <a
-                      href={downloadURL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 underline break-words"
-                    >
-                      here
-                    </a>.
-                  </p>
-                  <div className="mt-6 text-right">
-                    <button
-                      onClick={handleModalClose}
-                      className="bg-gray-800 hover:bg-gray-900 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
-                    >
-                      Close
-                    </button>
+        <Card className="w-full max-w-6xl mx-auto overflow-hidden relative"> {/* Increased width to 500px */}
+          <Button
+            onClick={handleLogout}
+            className="absolute top-2 right-2 shadow-xl shadow-black/10"
+            variant="outline"
+          >
+            Logout
+          </Button>
+          <CardHeader>
+            <CardTitle>User Profile</CardTitle>
+            <CardDescription>View or update your information</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <p><strong>Name:</strong> {name}</p>
+              <p><strong>Email:</strong> {email}</p>
+              <p><strong>Branch:</strong> {branch}</p>
+              <p><strong>CGPA:</strong> {cgpa}</p>
+              {downloadURL && (
+                <Button asChild variant="link" className="shadow-xl shadow-black/15 border-black  ">
+                  <a href={downloadURL} target="_blank" rel="noopener noreferrer">View Resume</a>
+                </Button>
+              )}
+            </div>
+          </CardContent>
+          <CardFooter>
+            <AlertDialog>
+              <AlertDialogTrigger asChild className="shadow-xl shadow-black/15">
+                <Button>Update Details</Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Update Your Details</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Make changes to your profile here. Click save when you&apos;re done.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <form onSubmit={handleSubmit}>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="name">Name</Label>
+                      <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="branch">Branch</Label>
+                      <Select value={branch} onValueChange={setBranch}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select Branch" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="CSE">CSE</SelectItem>
+                          <SelectItem value="ECE">ECE</SelectItem>
+                          <SelectItem value="CSE-AIML">CSE-AIML</SelectItem>
+                          <SelectItem value="CSE-DS">CSE-DS</SelectItem>
+                          <SelectItem value="Civil">Civil</SelectItem>
+                          <SelectItem value="Mech">Mech</SelectItem>
+                          <SelectItem value="EEE">EEE</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="cgpa">CGPA</Label>
+                      <Input id="cgpa" type="number" step="0.01" value={cgpa} onChange={(e) => setCgpa(e.target.value)} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="resume">Resume</Label>
+                      <Input id="resume" type="file" accept=".pdf,.doc,.docx" onChange={(e) => setResume(e.target.files ? e.target.files[0] : null)} />
+                    </div>
                   </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )
+                  <AlertDialogFooter className="mt-4">
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction type="submit">
+                      {uploadStatus === "uploading" ? "Updating..." : "Save Changes"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </form>
+              </AlertDialogContent>
+            </AlertDialog>
+          </CardFooter>
+        </Card>
       ) : (
-        <button
-          onClick={handleGoogleSignIn}
-          className="bg-gray-800 hover:bg-gray-900 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
-        >
-          Sign in with Google
-        </button>
+        <Card className="w-[full]"> {/* Increased width to 500px */}
+          <CardHeader>
+            <CardTitle>Welcome</CardTitle>
+            <CardDescription>Please sign in to continue</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={handleGoogleSignIn} className="w-full">
+              Sign in with Google
+            </Button>
+          </CardContent>
+        </Card>
       )}
     </div>
+    </ThemeProvider>
   );
 };
 
