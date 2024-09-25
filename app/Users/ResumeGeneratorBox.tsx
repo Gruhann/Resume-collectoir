@@ -11,7 +11,7 @@ const ResumeGeneratorBox = () => {
   ];
 
   return (
-    <Card className="w-full max-w-md mx-auto mt-8 shadow-2xl shadow-black/20">
+    <Card className="w-full max-w-md mx-auto mt-8 shadow-xl shadow-black/20">
       <CardHeader>
         <h2 className="text-2xl font-bold text-center">Generate Your Resume Here</h2>
       </CardHeader>

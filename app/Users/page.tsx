@@ -188,7 +188,7 @@ const Users: React.FC = () => {
     <ThemeToggle />
       {user ? (
         <>
-        <Card className="w-full max-w-6xl mx-auto overflow-hidden relative shadow-2xl shadow-black/20 "> {/* Increased width to 500px */}
+        <Card className="w-full max-w-6xl mx-auto overflow-hidden relative shadow-xl shadow-black/15 "> {/* Increased width to 500px */}
           <Button
             onClick={handleLogout}
             className="absolute top-2 right-2 shadow-xl shadow-black/10"
