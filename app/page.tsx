@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { MoonIcon, SunIcon } from "lucide-react";
 import { useTheme } from "next-themes";
-
 const ThemeToggle = () => {
   const { setTheme, theme } = useTheme();
 
@@ -26,7 +25,7 @@ const ThemeToggle = () => {
 export default function Home() {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-      <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground p-4">
+      <div className="flex flex-col items-center justify-center max-w-screen h-screen max-h-screen  bg-background text-foreground p-4">
         <ThemeToggle />
         <Card className="w-full max-w-md">
           <CardHeader>
@@ -46,7 +45,9 @@ export default function Home() {
             </Link>
           </CardContent>
         </Card>
+        
       </div>
+      
     </ThemeProvider>
   );
 }

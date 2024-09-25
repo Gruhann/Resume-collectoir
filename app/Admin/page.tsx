@@ -129,7 +129,7 @@ const Admin: React.FC = () => {
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <ThemeToggle />
     {!isLoggedIn ? (
-      <Card className="w-full max-w-md mx-auto bg-background text-foreground p-4">
+      <Card className="w-full max-w-md mx-auto max-h-screen bg-background text-foreground p-4">
         <CardHeader>
           <CardTitle className="text-3xl font-bold text-center">Admin Login</CardTitle>
         </CardHeader>

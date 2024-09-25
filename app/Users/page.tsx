@@ -16,6 +16,8 @@ import { ThemeProvider } from "next-themes";
 import { MoonIcon, SunIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { FirebaseError } from "firebase/app";
+import ResumeGeneratorBox from "./ResumeGeneratorBox";
+
 const ThemeToggle = () => {
   const { setTheme, theme } = useTheme();
 
@@ -185,7 +187,8 @@ const Users: React.FC = () => {
     <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground">
     <ThemeToggle />
       {user ? (
-        <Card className="w-full max-w-6xl mx-auto overflow-hidden relative"> {/* Increased width to 500px */}
+        <>
+        <Card className="w-full max-w-6xl mx-auto overflow-hidden relative shadow-2xl shadow-black/20 "> {/* Increased width to 500px */}
           <Button
             onClick={handleLogout}
             className="absolute top-2 right-2 shadow-xl shadow-black/10"
@@ -194,7 +197,7 @@ const Users: React.FC = () => {
             Logout
           </Button>
           <CardHeader>
-            <CardTitle>User Profile</CardTitle>
+            <CardTitle className="font-bold text-xl">User Profile</CardTitle>
             <CardDescription>View or update your information</CardDescription>
           </CardHeader>
           <CardContent>
@@ -265,6 +268,10 @@ const Users: React.FC = () => {
             </AlertDialog>
           </CardFooter>
         </Card>
+        <div className="container mx-auto p-4">
+      <ResumeGeneratorBox />
+    </div>
+       </>
       ) : (
         <Card className="w-[full]"> {/* Increased width to 500px */}
           <CardHeader>
@@ -277,6 +284,7 @@ const Users: React.FC = () => {
             </Button>
           </CardContent>
         </Card>
+        
       )}
     </div>
     </ThemeProvider>
