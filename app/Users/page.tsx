@@ -1,10 +1,9 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client'
 import React, { useState, useEffect } from "react";
 import { auth, storage, db } from "../../firebase.js";
 import { GoogleAuthProvider, signInWithPopup, User, signOut } from "firebase/auth";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import {  doc, onSnapshot, setDoc } from "firebase/firestore";
+import {  doc, onSnapshot, setDoc,DocumentSnapshot } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -17,6 +16,13 @@ import { MoonIcon, SunIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { FirebaseError } from "firebase/app";
 import ResumeGeneratorBox from "./ResumeGeneratorBox";
+
+interface UserData {
+  name: string;
+  branch: string;
+  cgpa: string;
+  resumeURL: string;
+}
 
 const ThemeToggle = () => {
   const { setTheme, theme } = useTheme();
@@ -87,13 +93,12 @@ const Users: React.FC = () => {
       }
     }
   };
-
   const checkUserData = async (user: User) => {
     try {
       const docRef = doc(db, "students", user.uid);
-      const unsubscribe = onSnapshot(docRef, (docSnapshot: { exists: () => any; data: () => any; }) => {
+      const unsubscribe = onSnapshot(docRef, (docSnapshot: DocumentSnapshot) => {
         if (docSnapshot.exists()) {
-          const userData = docSnapshot.data();
+          const userData = docSnapshot.data() as UserData;
           setName(userData.name);
           setBranch(userData.branch);
           setCgpa(userData.cgpa);
@@ -116,7 +121,6 @@ const Users: React.FC = () => {
       }
     }
   };
-
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
