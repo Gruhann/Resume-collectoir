@@ -62,7 +62,7 @@ const Admin: React.FC = () => {
       const studentList = studentSnapshot.docs.map((doc) => {
         const data = doc.data();
         return {
-          id: doc.id,
+
           name: data.name,
           email: data.email,
           branch: data.branch,
@@ -92,16 +92,31 @@ const Admin: React.FC = () => {
 
   const handleExport = async () => {
     setLoadingExport(true);
-    const worksheet = XLSX.utils.json_to_sheet(students);
+    
+    const worksheetData = students.map(student => ({
+      Name: student.name,
+      Email: student.email,
+      Branch: student.branch,
+      CGPA: student.cgpa,
+      Resume: student.resumeURL ? "View" : "N/A"
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(worksheetData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Students");
     
+    worksheetData.forEach((student, index) => {
+      if (student.Resume === "View") {
+        const cellRef = XLSX.utils.encode_cell({r: index + 1, c: 4}); // +1 to skip header row
+        worksheet[cellRef].l = { Target: students[index].resumeURL };
+      }
+    });
+
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     XLSX.writeFile(workbook, "students_data.xlsx");
     setLoadingExport(false);
   };
-
   const handleSort = (field: keyof Student) => {
     setSortField(field);
     setSortOrder(sortOrder === "asc" ? "desc" : "asc");
